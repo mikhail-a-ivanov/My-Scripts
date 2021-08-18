@@ -11,14 +11,17 @@ def readfile(ifilename):
     
     return(lines)
 
-def writeMDP(ofilename, lines):
-    """Writes and mdp file"""
+def writefile(ofilename, lines, align=24, justify=True):
+    """Writes a file from lines"""
     with open(ofilename, 'w') as file:
         for line_index in range(len(lines)):
             splitted_line = lines[line_index].split()
             newline = ''
             for string in splitted_line:
-                newline += "{:<24}".format(string)
+                if justify:
+                    newline += str(string).ljust(align)
+                else:
+                    newline += str(string) + ' '
             newline += '\n'
             file.write(newline)
     
@@ -32,13 +35,13 @@ def readLineValue(input_line, position):
 
     return(splitted_line[position])
 
-def updateLine(input_line, position, value):
+def updateLine(input_line, position, value, align=24):
     """Updates a value in a certain position within the input line"""
     splitted_line = input_line.split()
     splitted_line[position] = value
     newline = ''
     for string in splitted_line:
-        newline += "{:<24}".format(string)
+        newline += str(string).ljust(align)
     newline += '\n'
 
     return(newline)
@@ -79,7 +82,8 @@ def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
             else:
                 ofilename = f'{round((pressure * bar_to_gpa), 2)}GPa_{int(ref_T)}K_eq.mdp'
 
-            writeMDP(ofilename, newlines)
+            ofilenames.append(ofilename[:-4]) # remove extension .mdp
+            writefile(ofilename, newlines)
 
     elif temperatures != []:
         for temperature in temperatures:
@@ -97,23 +101,49 @@ def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
             else:
                 ofilename = f'{round((float(ref_p) * bar_to_gpa), 2)}GPa_{temperature}K_eq.mdp'
 
+            print(ofilename)
+
             ofilenames.append(ofilename[:-4]) # remove extension .mdp
-            writeMDP(ofilename, newlines)
+            writefile(ofilename, newlines)
 
     return(ofilenames)
 
 def prepDirs(ofilenames, gro='confin.gro', itps=['thf.itp', 'tip4p.itp'], top='topol.top'):
     for dirname in ofilenames:
         os.mkdir(dirname)
+        print(f'Creating folder {dirname}...')
         copy(gro, dirname)
         copy(top, dirname)
         copy((dirname + '.mdp'), dirname)
+        copy((dirname + '.bt'), dirname)
         for itp in itps:
             copy(itp, dirname)
+        print(f'Copying the input files to the {dirname} folder...')
+
+def genPBSscripts(ofilenames, ifilename='gmx.bt', root_dir='/home/misha/nas_home/THF/', 
+                    production_run=False, computenode='g7'):
+    inputlines = readfile(ifilename)
+    newlines = inputlines
+    for ofilename in ofilenames:
+        dirname = root_dir + ofilename
+        for line_index in range(len(inputlines)):
+            if 'nodes' in inputlines[line_index]:
+                nodestring = f'nodes={computenode}:ppn=24'
+                newlines[line_index] = updateLine(inputlines[line_index], 2, nodestring)
+            if 'cd' in inputlines[line_index]:
+                newlines[line_index] = updateLine(inputlines[line_index], 1, dirname)
+            if 'grompp' in inputlines[line_index]:
+                newlines[line_index] = updateLine(inputlines[line_index], 3, (ofilename + '.mdp'))
+                if production_run and not 'state.cpt' in newlines[line_index]:
+                    newlines[line_index] += '-t state.cpt \n'
         
-        
+        writefile((ofilename + '.bt'), newlines, justify=False)
 
+    return
 
-
-ofilenames = genMDP('eqT130p1bar.mdp', pressures=[1000, 2000, 3000], temperatures=[], production_run=False)
+# Generate the mdp files        
+ofilenames = genMDP('eqT130p1bar.mdp', pressures=[1000, 2000, 3000], temperatures=[], production_run=True)
+# Generate the PBS scripts
+genPBSscripts(ofilenames, production_run=True, computenode='g7')
+# Create folders and copy all the input files there
 prepDirs(ofilenames)
