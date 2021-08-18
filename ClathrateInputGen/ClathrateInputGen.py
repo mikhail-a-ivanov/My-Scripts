@@ -1,3 +1,5 @@
+import os
+
 # Some useful constants:
 bar_to_gpa = 1E-4
 
@@ -48,6 +50,7 @@ def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
     Note: It is currently not possible to adjust T and p values simultaneously."""
     inputlines = readfile(ifilename)
     newlines = inputlines
+    ofilenames = []
 
     for line_index in range(len(inputlines)):
          if 'berendsen' in inputlines[line_index] and production_run:
@@ -93,8 +96,12 @@ def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
             else:
                 ofilename = f'{round((float(ref_p) * bar_to_gpa), 2)}GPa_{temperature}K_eq.mdp'
 
+            ofilenames.append(ofilename[:-4]) # remove extension .mdp
             writeMDP(ofilename, newlines)
 
-    return
+    return(ofilenames)
 
-genMDP('eqT130p1bar.mdp', pressures=[], temperatures=[130, 140, 150], production_run=True)
+
+
+ofilenames = genMDP('eqT130p1bar.mdp', pressures=[], temperatures=[130, 140, 150], production_run=True)
+print(ofilenames)
