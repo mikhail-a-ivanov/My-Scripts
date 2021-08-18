@@ -116,7 +116,6 @@ def prepDirs(ofilenames, gro='confin.gro', itps=['thf.itp', 'tip4p.itp'], top='t
         copy(gro, dirname)
         copy(top, dirname)
         copy((dirname + '.mdp'), dirname)
-        copy((dirname + '.bt'), dirname)
         for itp in itps:
             copy(itp, dirname)
         print(f'Copying the input files to the {dirname} folder...')
