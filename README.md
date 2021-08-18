@@ -5,3 +5,7 @@ A collection of useful Python scripts
 
 - Generates gaussian input files from pdb files
 - Analyse gaussian output files
+
+2. ClathrateInputGen
+
+- Generates mdp files for MD simulations of clathrates in GROMACS 
