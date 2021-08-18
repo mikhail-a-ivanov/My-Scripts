@@ -43,33 +43,58 @@ def updateLine(input_line, position, value):
 def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
     """Generates a sequence of mdp files with varying temperatures and pressures.
     Adjusts the barostat, continuation and velocity generation options according to 
-    the production_run flag."""
+    the production_run flag.
+    
+    Note: It is currently not possible to adjust T and p values simultaneously."""
     inputlines = readfile(ifilename)
     newlines = inputlines
+
+    for line_index in range(len(inputlines)):
+         if 'berendsen' in inputlines[line_index] and production_run:
+             newlines[line_index] = updateLine(inputlines[line_index], 2, 'parrinello-rahman')
+         elif 'berendsen' in inputlines[line_index] and not production_run:
+             continue
+         elif 'continuation' in inputlines[line_index]:
+             if production_run and readLineValue(inputlines[line_index], 2) == 'no':
+                 newlines[line_index] = updateLine(inputlines[line_index], 2, 'yes')
+         elif 'gen-vel' in inputlines[line_index]:
+             if production_run and readLineValue(inputlines[line_index], 2) == 'yes':
+                 newlines[line_index] = updateLine(inputlines[line_index], 2, 'no')
+
     if pressures != []:
         for pressure in pressures:
             for line_index in range(len(inputlines)):
                 if 'ref-p' in inputlines[line_index]:
                     newlines[line_index] = updateLine(inputlines[line_index], 2, pressure)
-                elif 'ref-t' in inputlines[line_index]:
+                if 'ref-t' in inputlines[line_index]:
                     ref_T = readLineValue(inputlines[line_index], 2)
-                elif 'berendsen' in inputlines[line_index] and production_run:
-                    newlines[line_index] = updateLine(inputlines[line_index], 2, 'parrinello-rahman')
-                elif 'berendsen' in inputlines[line_index] and not production_run:
-                    continue
-                elif 'continuation' in inputlines[line_index]:
-                    if production_run and readLineValue(inputlines[line_index], 2) == 'no':
-                        newlines[line_index] = updateLine(inputlines[line_index], 2, 'yes')
-                elif 'gen-vel' in inputlines[line_index]:
-                    if production_run and readLineValue(inputlines[line_index], 2) == 'yes':
-                        newlines[line_index] = updateLine(inputlines[line_index], 2, 'no')
+               
 
             if production_run:
                 ofilename = f'{round((pressure * bar_to_gpa), 2)}GPa_{int(ref_T)}K_prod.mdp'
             else:
                 ofilename = f'{round((pressure * bar_to_gpa), 2)}GPa_{int(ref_T)}K_eq.mdp'
+
+            writeMDP(ofilename, newlines)
+
+    elif temperatures != []:
+        for temperature in temperatures:
+            for line_index in range(len(inputlines)):
+                if 'ref-t' in inputlines[line_index]:
+                    newlines[line_index] = updateLine(inputlines[line_index], 2, temperature)
+                if 'gen-temp' in inputlines[line_index]:
+                    newlines[line_index] = updateLine(inputlines[line_index], 2, temperature)
+                if 'ref-p' in inputlines[line_index]:
+                    ref_p = readLineValue(inputlines[line_index], 2)
+               
+
+            if production_run:
+                ofilename = f'{round((float(ref_p) * bar_to_gpa), 2)}GPa_{temperature}K_prod.mdp'
+            else:
+                ofilename = f'{round((float(ref_p) * bar_to_gpa), 2)}GPa_{temperature}K_eq.mdp'
+
             writeMDP(ofilename, newlines)
 
     return
 
-genMDP('eqT130p1bar.mdp', pressures=[10000, 11000, 12000], production_run=True)
+genMDP('eqT130p1bar.mdp', pressures=[], temperatures=[130, 140, 150], production_run=True)
