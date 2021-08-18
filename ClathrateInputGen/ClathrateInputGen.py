@@ -1,4 +1,5 @@
 import os
+from shutil import copy
 
 # Some useful constants:
 bar_to_gpa = 1E-4
@@ -101,7 +102,18 @@ def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
 
     return(ofilenames)
 
+def prepDirs(ofilenames, gro='confin.gro', itps=['thf.itp', 'tip4p.itp'], top='topol.top'):
+    for dirname in ofilenames:
+        os.mkdir(dirname)
+        copy(gro, dirname)
+        copy(top, dirname)
+        copy((dirname + '.mdp'), dirname)
+        for itp in itps:
+            copy(itp, dirname)
+        
+        
 
 
-ofilenames = genMDP('eqT130p1bar.mdp', pressures=[], temperatures=[130, 140, 150], production_run=True)
-print(ofilenames)
+
+ofilenames = genMDP('eqT130p1bar.mdp', pressures=[1000, 2000, 3000], temperatures=[], production_run=False)
+prepDirs(ofilenames)
