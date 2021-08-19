@@ -1,5 +1,6 @@
 import os
 from shutil import copy
+from shutil import move
 
 # Some useful constants:
 bar_to_gpa = 1E-4
@@ -108,24 +109,34 @@ def genMDP(ifilename, pressures=[], temperatures=[], production_run=False):
 
     return(ofilenames)
 
-def prepDirs(ofilenames, gro='confin.gro', itps=['thf.itp', 'tip4p.itp'], top='topol.top'):
-    """Creates the folders for the MD runs and copies all the input files there"""
-    for dirname in ofilenames:
+def prepDirs(ofilenames, gro='confin.gro', itps=['thf.itp', 'tip4p.itp'], top='topol.top', dirlist_name='dirs.txt'):
+    """Creates the folders for the MD runs and copies all the input files there
+    and saves a directory list as a separate file for future analysis of the MD data"""
+    dir_list = []
+    for i in range(len(ofilenames)):
+        dirname = (str(i + 1).zfill(2) + '_' + ofilenames[i])
+        dir_list.append(dirname)
         os.mkdir(dirname)
         print(f'Creating folder {dirname}...')
-        copy(gro, dirname)
         copy(top, dirname)
-        copy((dirname + '.mdp'), dirname)
+        move((ofilenames[i] + '.mdp'), dirname)
         for itp in itps:
             copy(itp, dirname)
         print(f'Copying the input files to the {dirname} folder...')
+    copy(gro, dir_list[0])
+
+    with open(dirlist_name, 'w') as file:
+        for dir in dir_list:
+            file.write(dir + '\n')
+
+    return(dir_list)
 
 
-def genPBSscript(ofilenames, ifilename='gmx.bt', root_dir='/home/misha/nas_home/THF/', computenode='g7'):
+def genPBSscript(ofilenames, dir_list, ifilename='gmx.bt', root_dir='/home/misha/nas_home/THF/', computenode='g7'):
     """Generates PBS script for running the MD simulations on mmkluster"""
     inputlines = readfile(ifilename)
     newlines = inputlines
-    first_dirname = root_dir + ofilenames[0]
+    first_dirname = root_dir + dir_list[0]
     for line_index in range(len(inputlines)):
         if 'nodes' in inputlines[line_index]:
             nodestring = f'nodes={computenode}:ppn=24'
@@ -136,12 +147,12 @@ def genPBSscript(ofilenames, ifilename='gmx.bt', root_dir='/home/misha/nas_home/
             newlines[line_index] = updateLine(inputlines[line_index], 3, (ofilenames[0] + '.mdp'))
 
     for i in range(len(ofilenames[:-1])):
-        dirname = root_dir + ofilenames[i]
+        dirname = dir_list[i + 1]
         newlines.append('\n')
-        newlines.append(f'cp confout.gro ../{ofilenames[i + 1]} \n')
-        newlines.append(f'cp state.cpt ../{ofilenames[i + 1]} \n')
+        newlines.append(f'cp confout.gro ../{dirname} \n')
+        newlines.append(f'cp state.cpt ../{dirname} \n')
         newlines.append('\n')
-        newlines.append(f'cd ../{ofilenames[i + 1]} \n')
+        newlines.append(f'cd ../{dirname} \n')
         newlines.append(f'mv confout.gro confin.gro \n')
         # Production simulation have even index
         if (i % 2) == 0:
@@ -162,7 +173,8 @@ ofilenames_prod = genMDP('eqT130p1bar.mdp', pressures=list(range(1000, 21000, 10
 ofilenames = ofilenames_eq + ofilenames_prod
 ofilenames.sort()
 
-# Generate the PBS script
-genPBSscript(ofilenames, computenode='g7')
 # Create folders and copy all the input files there
-prepDirs(ofilenames)
+dir_list = prepDirs(ofilenames)
+
+# Generate the PBS script
+genPBSscript(ofilenames, dir_list, computenode='g7')
